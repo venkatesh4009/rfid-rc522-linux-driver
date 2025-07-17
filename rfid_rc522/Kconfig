@@ -1,0 +1,8 @@
+
+config RFID_RC522
+	tristate "rfid RC522 for RB-A5D2x"
+        default y
+	help
+	     This driver helps you to interface with RFID RC522 with RB-A5D2x.
+
+

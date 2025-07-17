@@ -1,0 +1,1074 @@
+From bea73c30b7e559ee3e1b155a66e5b8f9569b1e57 Mon Sep 17 00:00:00 2001
+From: venkatesh <venkatesh.m@phytecembedded.in>
+Date: Tue, 2 Apr 2024 11:18:21 +0530
+Subject: [PATCH 2/2] rfid-rc522_driver
+
+
+diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+index 64971baf11fa..bab78474bfde 100644
+--- a/drivers/misc/Kconfig
++++ b/drivers/misc/Kconfig
+@@ -778,4 +778,5 @@ source "drivers/misc/mic/Kconfig"
+ source "drivers/misc/genwqe/Kconfig"
+ source "drivers/misc/echo/Kconfig"
+ source "drivers/misc/cxl/Kconfig"
++source "drivers/misc/rfid_rc522/Kconfig"
+ endmenu
+diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
+index 2bf79ba4a39e..d8fb0da60d2d 100644
+--- a/drivers/misc/Makefile
++++ b/drivers/misc/Makefile
+@@ -34,6 +34,9 @@ obj-$(CONFIG_TI_DAC7512)	+= ti_dac7512.o
+ obj-$(CONFIG_C2PORT)		+= c2port/
+ obj-$(CONFIG_HMC6352)		+= hmc6352.o
+ obj-y				+= eeprom/
++
++obj-y 			        += rfid_rc522/
++
+ obj-y				+= cb710/
+ obj-$(CONFIG_SPEAR13XX_PCIE_GADGET)	+= spear13xx_pcie_gadget.o
+ obj-$(CONFIG_VMWARE_BALLOON)	+= vmw_balloon.o
+diff --git a/drivers/misc/rfid_rc522/Kconfig b/drivers/misc/rfid_rc522/Kconfig
+new file mode 100644
+index 000000000000..0fdffb28823e
+--- /dev/null
++++ b/drivers/misc/rfid_rc522/Kconfig
+@@ -0,0 +1,8 @@
++
++config RFID_RC522
++	tristate "rfid RC522 for RB-A5D2x"
++        default y
++	help
++	     This driver helps you to interface with RFID RC522 with RB-A5D2x.
++
++
+diff --git a/drivers/misc/rfid_rc522/Makefile b/drivers/misc/rfid_rc522/Makefile
+new file mode 100644
+index 000000000000..54faab20b5e6
+--- /dev/null
++++ b/drivers/misc/rfid_rc522/Makefile
+@@ -0,0 +1,2 @@
++obj-$(CONFIG_RFID_RC522)	+= rfid-rc522.o
++rfid-rc522-objs 		+= rc522.o rc522_api.o
+diff --git a/drivers/misc/rfid_rc522/rc522.c b/drivers/misc/rfid_rc522/rc522.c
+new file mode 100644
+index 000000000000..223df416c15a
+--- /dev/null
++++ b/drivers/misc/rfid_rc522/rc522.c
+@@ -0,0 +1,422 @@
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/input.h>
++#include <linux/init.h>
++#include <linux/errno.h>
++#include <linux/delay.h>
++#include <linux/miscdevice.h>
++#include <linux/platform_device.h>
++#include <asm/uaccess.h>
++#include <linux/poll.h>
++#include <linux/wait.h>
++#include <linux/interrupt.h>
++#include <linux/sched.h>
++#include <asm/atomic.h>
++#include <linux/mutex.h>
++#include <linux/spi/spi.h>
++#include "rc522_api.h"
++#include <linux/workqueue.h>
++
++#include <linux/of.h>
++#include <linux/types.h>
++#include <linux/bitops.h>
++#include <linux/errno.h>
++#include <linux/kref.h>
++#include <linux/mod_devicetable.h>
++#include <linux/spinlock.h>
++#include <linux/topology.h>
++#include <asm/byteorder.h>
++#include <asm/errno.h>
++
++
++
++#define  N_1  1
++#define  N_2  2
++#define  N_3  3
++#define  N_4  4
++#define  N_NOP  255
++
++
++
++#define  RELOAD_COUNT  0xfb    //18.432M  9600  0xfb
++//         4800  0xf6 
++#define CHANGE_PASSWD 1
++#define CHANGE_BLOCK  2
++#define READ_CARD     3  
++#define WRITE_CARD    4
++#define CHANGE_KEY    5
++#define GET_ID 	      6
++
++typedef unsigned char uchar;
++uchar NewKey[16]={0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x07,0x80,0x69,0x00,0x00,0x00,0x00,0x00,0x00};
++
++/*static DECLARE_WAIT_QUEUE_HEAD(rc522_wait);*/
++static unsigned char Read_Data[16]={0x00};
++static unsigned char read_data_buff[16];
++
++static uchar PassWd[6]={0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
++static uchar WriteData[16];
++static unsigned char RevBuffer[30];
++static unsigned char MLastSelectedSnr[4];
++
++uint KuaiN;
++uchar operationcard;
++
++struct workqueue_struct *rc522_wq;
++
++struct work_struct rc522_work;
++
++struct spi_device *rc522_spi;
++
++void delay_ms(uint tms)
++{
++	mdelay(tms);
++}
++void InitRc522(void)
++{
++	unsigned char a;
++	PcdReset();
++	a = ReadRawRC(TReloadRegL);
++	if(a != 30)
++		printk(KERN_DEBUG"NO RC522%d\n",a);
++	else
++		printk(KERN_DEBUG"RC522 exist\n");
++	PcdAntennaOff();  
++	PcdAntennaOn();
++	M500PcdConfigISOType( 'A' );
++}
++
++static char rc522_loop_work(uchar opnd)
++{
++	char *pdata = read_data_buff;
++	char status;
++	int i;
++
++	PcdReset();
++
++	status=PcdRequest(PICC_REQIDL,&RevBuffer[0]);//√ë¬∞√å√¨√è√ü√á√∏√Ñ√ö√é¬¥¬Ω√∏√à√´√ê√ù√É√ü√ó¬¥√å¬¨¬µ√Ñ¬ø¬®¬£¬¨¬∑¬µ¬ª√ò¬ø¬®√Ü¬¨√Ä√†√ê√ç 2√ó√ñ¬Ω√ö
++	if(status!=MI_OK)
++	{
++		printk(KERN_INFO "search card: no card\n");
++		return -EFAULT;
++	}
++	else
++	{
++		printk(KERN_INFO "  search card : OK | RevBuffer[%x] \n",RevBuffer[0]);
++	}
++	
++	status=PcdAnticoll(&RevBuffer[2]);//¬∑√Ä¬≥√•√ó¬≤¬£¬¨¬∑¬µ¬ª√ò¬ø¬®¬µ√Ñ√ê√≤√Å√ê¬∫√Ö 4√ó√ñ¬Ω√ö
++	if(status!=MI_OK)
++	{
++		printk(KERN_INFO"get card nu: no number\n");
++		return -EFAULT;
++	}
++	else
++	{
++		printk(KERN_INFO " ------ got card no: OK | RevBuffer[%x] \n",RevBuffer[2]);
++	}
++
++
++	memcpy(MLastSelectedSnr,&RevBuffer[2],4);
++
++	printk(KERN_INFO " ---------- MLastSelectedSnr : %s  -------- \n",MLastSelectedSnr);
++
++	status=PcdSelect(MLastSelectedSnr);
++
++	if(status!=MI_OK)
++	{
++		printk(KERN_INFO "select card: no card\n");
++		return -EFAULT;            
++	}
++	if (opnd == GET_ID) {
++		PcdHalt();	
++		return 0;	
++	}
++	else if (opnd == READ_CARD) {//¬∂√Å¬ø¬®
++		status=PcdAuthState(PICC_AUTHENT1A,KuaiN,PassWd,MLastSelectedSnr);
++		if(status!=MI_OK)
++		{
++			printk(KERN_DEBUG"read authorize card err\n");
++			return -EFAULT;               
++		}
++		else
++		{
++			printk(KERN_DEBUG "------READ AUTHORIZED CARD  ------\n");
++
++		}
++
++		status=PcdRead(KuaiN,Read_Data);
++		if(status!=MI_OK)
++		{
++			printk(KERN_DEBUG"read card err\n");
++			return -EFAULT;
++		} 
++		else 
++		{
++			printk(KERN_DEBUG"No Error status  in reading card.. Reading card started \n");
++			memcpy(pdata, Read_Data, sizeof(Read_Data));
++			/*wake_up_interruptible(&rc522_wait);*/
++			printk(KERN_DEBUG"read block %d info:", KuaiN);
++			for(i = 0; i < 16; i++) 
++			{
++				printk(KERN_DEBUG" memcpy %x,  %2.2X",pdata[i],pdata[i]);
++			}
++			printk(KERN_DEBUG"\n");
++		}
++
++	   } 
++	else if (opnd == CHANGE_KEY) {//√ê√û¬∏√Ñ√É√ú√Ç√´
++		status=PcdAuthState(PICC_AUTHENT1A,KuaiN,PassWd,MLastSelectedSnr);
++		if(status!=MI_OK)
++		{
++			printk(KERN_DEBUG"card authorize err");
++			return -EFAULT;
++		}
++		status=PcdWrite(KuaiN,&NewKey[0]);
++		if(status!=MI_OK)
++		{
++			printk(KERN_DEBUG"change password err");
++			return -EFAULT;
++		} else
++			printk(KERN_DEBUG"set password success");
++	} else if (opnd == WRITE_CARD) {//√ê¬¥¬ø¬®
++		status=PcdAuthState(PICC_AUTHENT1A,KuaiN,PassWd,MLastSelectedSnr);
++		if(status!=MI_OK)
++		{
++			printk(KERN_DEBUG"write authrioze err\n");
++			return -EFAULT;               
++		}
++		status=PcdWrite(KuaiN,&WriteData[0]);
++		if(status!=MI_OK)
++		{
++			printk(KERN_DEBUG"write data err\n");
++			return -EFAULT;
++		} else {
++			printk(KERN_DEBUG"write data to block %d sucess\n", KuaiN);
++		}
++	}
++	PcdHalt();	
++	return 0;
++}
++
++
++
++static int rc522_open(struct inode *inode,struct file *filp)
++{
++
++	InitRc522();
++	printk(KERN_DEBUG"rc522 start work!\n");
++	return 0;
++}
++
++static ssize_t rc522_read (struct file *filp, char *buf, size_t count, loff_t *f_pos)
++{
++	/*PcdReset();*/
++	int i;	
++	operationcard = READ_CARD;
++	
++	if(rc522_loop_work(operationcard))
++		return 0;
++
++
++	for(i=0;i<16;i++)
++	{
++		printk(KERN_DEBUG"card info[%d]: %x,  %2.2X\n",i,Read_Data[i],Read_Data[i]);
++	}
++
++	if (copy_to_user(buf, read_data_buff, sizeof(read_data_buff))) {
++		printk(KERN_DEBUG"copy card number to userspace err\n");
++		return 0;
++	}
++	return sizeof(read_data_buff);
++}
++
++static ssize_t rc522_write (struct file *filp, const char *buf, size_t count, loff_t *f_pos)
++{
++	if (KuaiN == 0) {
++		printk(KERN_DEBUG"block[0] is reserveed, can't write\n");
++		return 0;
++	}
++	if (KuaiN < 0 || KuaiN > 63) {
++		printk(KERN_DEBUG"block[%d] unreachable, please set the write block first", KuaiN);
++		return -0;
++	} 
++	if ((KuaiN % 4) == 3) {
++		printk(KERN_DEBUG"block[%d] is key block, not data block\n", KuaiN);
++		return -0;
++	}
++	memset(WriteData, 0, sizeof(WriteData));
++	if (copy_from_user(WriteData, (char *)buf, count)) {
++		printk(KERN_DEBUG"%s, [line %d] copy from user err.\n", __FILE__, __LINE__);
++		return 0;
++	}
++	/*PcdReset();*/
++	operationcard =  WRITE_CARD;
++	if(rc522_loop_work(operationcard))
++		return -EFAULT;
++	return 0;
++}
++
++static int rc522_release(struct inode *inode,struct file *filp)
++{
++	printk(KERN_DEBUG"%s\n", __func__);
++	return 0;
++}
++
++
++static unsigned int rc522_poll(struct file *file, poll_table *wait)
++{
++	unsigned int mask = 0;
++
++	//poll_wait(file, &rc522_wait, wait);
++
++	/*if (have_card_number) {*/
++	/*have_card_number = 0;*/
++	/*mask |= POLLIN | POLLRDNORM;*/
++	/*}   */
++
++	return mask;
++}
++
++static long rc522_ioctl(struct file *file, unsigned int cmd, unsigned long arg) 
++{
++	switch(cmd) {
++		case CHANGE_PASSWD:
++			operationcard = CHANGE_PASSWD;
++			if (copy_from_user(PassWd, (char *)arg, sizeof(PassWd))) {
++				printk(KERN_DEBUG"%s:change pass word err", __func__);
++				return -EFAULT;
++			}
++			break;
++		case CHANGE_BLOCK:
++			if (arg < 0 || arg > 63) {
++				printk(KERN_DEBUG"block number err %lu", arg);
++				return -EFAULT;
++			}
++			KuaiN = (int)arg;
++			break;
++		case READ_CARD:
++			break;
++		case WRITE_CARD:
++			break;
++		case CHANGE_KEY:
++			operationcard = CHANGE_KEY;
++			break;
++		case GET_ID:
++			operationcard =  GET_ID;
++			if(!rc522_loop_work(operationcard)){
++				if (copy_to_user((char *)arg, MLastSelectedSnr,4)) {
++					printk(KERN_DEBUG"%s, [line %d] copy to user err.\n", __FILE__, __LINE__);
++					return -EFAULT;
++				}
++			}
++			else
++				return -EFAULT;
++			break;
++		default:
++			break;
++	}
++	return 0;
++}
++
++
++static int rc522_remove(struct spi_device *spi)
++{
++	printk(KERN_DEBUG " rc522_remove    .\n");
++
++	return 0;
++}
++static int rc522_probe(struct spi_device *spi)
++{
++	//ÈªòËÆ§ËØªÁ¨¨‰∏ÄÂùó(ÂèØÈÄâ0 ~ 63)
++	KuaiN = 1; 
++	printk(KERN_DEBUG"%s\n", __func__);
++	rc522_spi = spi;
++
++	return 0;
++};
++
++/*  addded  SPI Device Tree Support from here */
++
++static const struct of_device_id rfid_dt_ids[] = {
++        { .compatible = "phytec,rfid_rc522"},
++        {},
++};
++MODULE_DEVICE_TABLE(of, rfid_dt_ids);
++
++static struct spi_driver rc522_driver = {
++	.driver = {
++		.name = "rc522",
++		.of_match_table = of_match_ptr(rfid_dt_ids), 
++	},
++	.probe = rc522_probe,
++	.remove = rc522_remove,
++};
++
++/*  addded  SPI Device Tree Support till here */
++
++static struct file_operations rc522_fops = {
++	.owner = THIS_MODULE,
++	.open = rc522_open,
++	.release = rc522_release, 
++	.read = rc522_read,
++	.write = rc522_write,
++	.poll = rc522_poll, 
++	.unlocked_ioctl = rc522_ioctl,
++};
++
++static struct miscdevice rc522_misc_device = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = "rfid_rc522_dev",
++	.fops = &rc522_fops,
++};
++
++static int RC522_init(void)
++{
++	int res;
++
++	/* Register the character device (atleast try) */
++	printk(KERN_DEBUG"--------rfid_rc522 module init ---------\n");
++
++	res =  misc_register(&rc522_misc_device);
++	if(res < 0) {
++		printk(KERN_DEBUG"device register failed with %d.\n",res);
++		return res;
++	}
++
++	/*rc522_wq = create_singlethread_workqueue("rfid_rc522_work");*/
++	/*INIT_WORK(&rc522_work, rc522_loop_work); */
++	/*init_timer(&beep_timer);  */
++	/*beep_timer.function = start_beep;*/
++	/*poll_timer.function = poll_time;*/
++
++#if 1
++	res = spi_register_driver(&rc522_driver);   
++	if(res < 0){
++		printk(KERN_DEBUG"spi register %s fail\n", __FUNCTION__);
++		return res;
++	}
++	printk(KERN_DEBUG  " ---- spi_register_driver done---- \n");
++#endif
++	return 0;
++}
++
++static void RC522_exit(void)
++{
++	printk(KERN_DEBUG"RC522 removed. \n");
++	/*flags = 0;*/
++
++	/*del_timer(&poll_timer);*/
++	/*flush_workqueue(rc522_wq);*/
++	/*destroy_workqueue(rc522_wq);*/
++	/*ifopen = 0;*/
++	spi_unregister_driver(&rc522_driver);
++	misc_deregister(&rc522_misc_device);
++}
++
++module_init(RC522_init);
++module_exit(RC522_exit);
++
++MODULE_AUTHOR("Chen Hao");
++MODULE_LICENSE("Dual BSD/GPL");	
+diff --git a/drivers/misc/rfid_rc522/rc522_api.c b/drivers/misc/rfid_rc522/rc522_api.c
+new file mode 100644
+index 000000000000..2367c774cc7a
+--- /dev/null
++++ b/drivers/misc/rfid_rc522/rc522_api.c
+@@ -0,0 +1,430 @@
++#include "rc522_api.h"
++
++#include <linux/delay.h>
++#include <linux/spi/spi.h>
++
++extern struct spi_device *rc522_spi;
++
++void delay_ns(unsigned int ns)
++{
++	ndelay(ns);
++}
++
++
++char PcdRequest(unsigned char req_code,unsigned char *pTagType)
++{
++	char status;  
++	unsigned int unLen;
++	unsigned char ucComMF522Buf[MAXRLEN]; 
++
++	ClearBitMask(Status2Reg,0x08);
++	WriteRawRC(BitFramingReg,0x07);
++	SetBitMask(TxControlReg,0x03);
++
++	ucComMF522Buf[0] = req_code;
++
++	status = PcdComMF522(PCD_TRANSCEIVE,ucComMF522Buf,1,ucComMF522Buf,&unLen);
++
++	if ((status == MI_OK) && (unLen == 0x10))
++	{    
++		*pTagType     = ucComMF522Buf[0];
++		*(pTagType+1) = ucComMF522Buf[1];
++	}
++	else
++	{   status = MI_ERR;   }
++
++	return status;
++}
++
++
++char PcdAnticoll(unsigned char *pSnr)
++{
++	char status;
++	unsigned char i,snr_check=0;
++	unsigned int unLen;
++	unsigned char ucComMF522Buf[MAXRLEN]; 
++
++
++	ClearBitMask(Status2Reg,0x08);
++	WriteRawRC(BitFramingReg,0x00);
++	ClearBitMask(CollReg,0x80);
++
++	ucComMF522Buf[0] = PICC_ANTICOLL1;
++	ucComMF522Buf[1] = 0x20;
++
++	status = PcdComMF522(PCD_TRANSCEIVE,ucComMF522Buf,2,ucComMF522Buf,&unLen);
++
++	if (status == MI_OK)
++	{
++		for (i=0; i<4; i++)
++		{   
++			*(pSnr+i)  = ucComMF522Buf[i];
++			snr_check ^= ucComMF522Buf[i];
++		}
++		if (snr_check != ucComMF522Buf[i])
++		{   status = MI_ERR;    }
++	}
++
++	SetBitMask(CollReg,0x80);
++	return status;
++}
++
++
++char PcdSelect(unsigned char *pSnr)
++{
++	char status;
++	unsigned char i;
++	unsigned int unLen;
++	unsigned char ucComMF522Buf[MAXRLEN]; 
++
++	ucComMF522Buf[0] = PICC_ANTICOLL1;
++	ucComMF522Buf[1] = 0x70;
++	ucComMF522Buf[6] = 0;
++	for (i=0; i<4; i++)
++	{
++		ucComMF522Buf[i+2] = *(pSnr+i);
++		ucComMF522Buf[6]  ^= *(pSnr+i);
++	}
++	CalulateCRC(ucComMF522Buf,7,&ucComMF522Buf[7]);
++
++	ClearBitMask(Status2Reg,0x08);
++
++	status = PcdComMF522(PCD_TRANSCEIVE,ucComMF522Buf,9,ucComMF522Buf,&unLen);
++
++	if ((status == MI_OK) && (unLen == 0x18))
++	{   status = MI_OK;  }
++	else
++	{   status = MI_ERR;    }
++
++	return status;
++}
++
++
++char PcdAuthState(unsigned char auth_mode,unsigned char addr,unsigned char *pKey,unsigned char *pSnr)
++{
++	char status;
++	unsigned int unLen;
++	unsigned char i,ucComMF522Buf[MAXRLEN]; 
++
++	ucComMF522Buf[0] = auth_mode;
++	ucComMF522Buf[1] = addr;
++	for (i=0; i<6; i++)
++	{    ucComMF522Buf[i+2] = *(pKey+i);   }
++	for (i=0; i<6; i++)
++	{    ucComMF522Buf[i+8] = *(pSnr+i);   }
++	//   memcpy(&ucComMF522Buf[2], pKey, 6); 
++	//   memcpy(&ucComMF522Buf[8], pSnr, 4); 
++
++	status = PcdComMF522(PCD_AUTHENT,ucComMF522Buf,12,ucComMF522Buf,&unLen);
++	if ((status != MI_OK) || (!(ReadRawRC(Status2Reg) & 0x08)))
++	{   status = MI_ERR;   }
++
++	return status;
++}
++
++
++char PcdRead(unsigned char addr,unsigned char *pData)
++{
++	char status;
++	unsigned int unLen;
++	unsigned char i,ucComMF522Buf[MAXRLEN]; 
++
++	ucComMF522Buf[0] = PICC_READ;
++	ucComMF522Buf[1] = addr;
++	CalulateCRC(ucComMF522Buf,2,&ucComMF522Buf[2]);
++
++	status = PcdComMF522(PCD_TRANSCEIVE,ucComMF522Buf,4,ucComMF522Buf,&unLen);
++	//if ((status == MI_OK) && (unLen == 0x90))
++		//   {   memcpy(pData, ucComMF522Buf, 16);   }
++	
++	if ((status == MI_OK) && (unLen == 0x90))
++	{
++		for (i=0; i<16; i++)
++		{   
++		       	*(pData+i) = ucComMF522Buf[i];   
++			printk(KERN_INFO " data : %x   \n",*(pData+i));
++		}
++	}
++	else
++	{   status = MI_ERR;   }
++
++	return status;
++}
++
++char PcdWrite(unsigned char addr,unsigned char *pData)
++{
++	char status;
++	unsigned int unLen;
++	unsigned char i,ucComMF522Buf[MAXRLEN]; 
++
++	ucComMF522Buf[0] = PICC_WRITE;
++	ucComMF522Buf[1] = addr;
++	CalulateCRC(ucComMF522Buf,2,&ucComMF522Buf[2]);
++
++	status = PcdComMF522(PCD_TRANSCEIVE,ucComMF522Buf,4,ucComMF522Buf,&unLen);
++
++	if ((status != MI_OK) || (unLen != 4) || ((ucComMF522Buf[0] & 0x0F) != 0x0A))
++	{   status = MI_ERR;   }
++
++	if (status == MI_OK)
++	{
++		//memcpy(ucComMF522Buf, pData, 16);
++		for (i=0; i<16; i++)
++		{    
++			ucComMF522Buf[i] = *(pData+i);   
++		}
++		CalulateCRC(ucComMF522Buf,16,&ucComMF522Buf[16]);
++
++		status = PcdComMF522(PCD_TRANSCEIVE,ucComMF522Buf,18,ucComMF522Buf,&unLen);
++		if ((status != MI_OK) || (unLen != 4) || ((ucComMF522Buf[0] & 0x0F) != 0x0A))
++		{   status = MI_ERR;   }
++	}
++
++	return status;
++}
++
++
++char PcdHalt(void)
++{
++	char status;
++	unsigned int unLen;
++	unsigned char ucComMF522Buf[MAXRLEN]; 
++
++	ucComMF522Buf[0] = PICC_HALT;
++	ucComMF522Buf[1] = 0;
++	CalulateCRC(ucComMF522Buf,2,&ucComMF522Buf[2]);
++
++	status = PcdComMF522(PCD_TRANSCEIVE,ucComMF522Buf,4,ucComMF522Buf,&unLen);
++
++	return MI_OK;
++}
++
++
++void CalulateCRC(unsigned char *pIndata,unsigned char len,unsigned char *pOutData)
++{
++	unsigned char i,n;
++	ClearBitMask(DivIrqReg,0x04);
++	WriteRawRC(CommandReg,PCD_IDLE);
++	SetBitMask(FIFOLevelReg,0x80);
++	for (i=0; i<len; i++)
++	{   WriteRawRC(FIFODataReg, *(pIndata+i));   }
++	WriteRawRC(CommandReg, PCD_CALCCRC);
++	i = 0xFF;
++	do 
++	{
++		n = ReadRawRC(DivIrqReg);
++		i--;
++	}
++	while ((i!=0) && !(n&0x04));
++	pOutData[0] = ReadRawRC(CRCResultRegL);
++	pOutData[1] = ReadRawRC(CRCResultRegM);
++}
++
++
++char PcdReset(void)
++{
++	SET_RC522RST;
++	delay_ns(10);
++	CLR_RC522RST;
++	delay_ns(10);
++	SET_RC522RST;
++	delay_ns(10);
++	WriteRawRC(CommandReg,PCD_RESETPHASE);
++	delay_ns(10);
++
++	WriteRawRC(ModeReg,0x3D);            //∫ÕMifareø®Õ®—∂£¨CRC≥ı º÷µ0x6363
++	WriteRawRC(TReloadRegL,30);           
++	WriteRawRC(TReloadRegH,0);
++	WriteRawRC(TModeReg,0x8D);
++	WriteRawRC(TPrescalerReg,0x3E);
++
++	WriteRawRC(TxAutoReg,0x40);//±ÿ–Î“™
++
++	return MI_OK;
++}
++
++char M500PcdConfigISOType(unsigned char type)
++{
++	if (type == 'A')                     //ISO14443_A
++	{ 
++		ClearBitMask(Status2Reg,0x08);
++		WriteRawRC(ModeReg,0x3D);//3F
++		WriteRawRC(RxSelReg,0x86);//84
++		WriteRawRC(RFCfgReg,0x7F);   //4F
++		WriteRawRC(TReloadRegL,30);//tmoLength);// TReloadVal = 'h6a =tmoLength(dec) 
++		WriteRawRC(TReloadRegH,0);
++		WriteRawRC(TModeReg,0x8D);
++		WriteRawRC(TPrescalerReg,0x3E);
++		delay_ns(1000);
++		PcdAntennaOn();
++	}
++	else{ return -1; }
++
++	return MI_OK;
++}
++
++unsigned char ReadRawRC(unsigned char Address)
++{
++	unsigned char ucAddr;
++	unsigned char ucResult=0;
++	int ret;
++
++	CLR_SPI_CS;
++	ucAddr = ((Address<<1)&0x7E)|0x80;
++
++	//	SPIWriteByte(ucAddr);
++	//	ucResult=SPIReadByte();
++	ret = spi_write_then_read(rc522_spi, &ucAddr, 1, &ucResult, 1);
++	if(ret != 0) {
++		printk("spi_write_then_read err = %d\n", ret);
++	}
++	SET_SPI_CS;
++	return ucResult;
++}
++
++
++void WriteRawRC(unsigned char Address, unsigned char value)
++{  
++	unsigned char ucAddr;
++
++
++	//	SPIWriteByte(ucAddr);
++	//	SPIWriteByte(value);
++	struct spi_transfer st[2];  
++	struct spi_message  msg; 
++
++	CLR_SPI_CS;
++	ucAddr = ((Address<<1)&0x7E);
++
++	spi_message_init( &msg );
++	memset( st, 0, sizeof(st) );
++
++	st[ 0 ].tx_buf = &ucAddr;  
++	st[ 0 ].len = 1;  
++	spi_message_add_tail( &st[0], &msg );  
++
++	st[ 1 ].tx_buf = &value;  
++	st[ 1 ].len = 1;  
++	spi_message_add_tail( &st[1], &msg );  
++	spi_sync( rc522_spi, &msg );
++
++	SET_SPI_CS;
++}
++
++void SetBitMask(unsigned char reg,unsigned char mask)  
++{
++	char tmp = 0x0;
++	tmp = ReadRawRC(reg);
++	WriteRawRC(reg,tmp | mask);  // set bit mask
++}
++
++
++void ClearBitMask(unsigned char reg,unsigned char mask)  
++{
++	char tmp = 0x0;
++	tmp = ReadRawRC(reg);
++	WriteRawRC(reg, tmp & ~mask);  // clear bit mask
++} 
++
++
++char PcdComMF522(unsigned char Command, 
++		unsigned char *pInData, 
++		unsigned char InLenByte,
++		unsigned char *pOutData, 
++		unsigned int *pOutLenBit)
++{
++	char status = MI_ERR;
++	unsigned char irqEn   = 0x00;
++	unsigned char waitFor = 0x00;
++	unsigned char lastBits;
++	unsigned char n;
++	unsigned int i;
++	switch (Command)
++	{
++		case PCD_AUTHENT:
++			irqEn   = 0x12;
++			waitFor = 0x10;
++			break;
++		case PCD_TRANSCEIVE:
++			irqEn   = 0x77;
++			waitFor = 0x30;
++			break;
++		default:
++			break;
++	}
++
++	WriteRawRC(ComIEnReg,irqEn|0x80);
++	ClearBitMask(ComIrqReg,0x80);
++	WriteRawRC(CommandReg,PCD_IDLE);
++	SetBitMask(FIFOLevelReg,0x80);
++
++	for (i=0; i<InLenByte; i++)
++	{   WriteRawRC(FIFODataReg, pInData[i]);    }
++	WriteRawRC(CommandReg, Command);
++
++
++	if (Command == PCD_TRANSCEIVE)
++	{    SetBitMask(BitFramingReg,0x80);  }
++
++
++	i = 2000;
++	do 
++	{
++		n = ReadRawRC(ComIrqReg);
++		i--;
++	}
++	while ((i!=0) && !(n&0x01) && !(n&waitFor));
++	ClearBitMask(BitFramingReg,0x80);
++
++	if (i!=0)
++	{    
++		if(!(ReadRawRC(ErrorReg)&0x1B))
++		{
++			status = MI_OK;
++			if (n & irqEn & 0x01)
++			{   status = MI_NOTAGERR;   }
++			if (Command == PCD_TRANSCEIVE)
++			{
++				n = ReadRawRC(FIFOLevelReg);
++				lastBits = ReadRawRC(ControlReg) & 0x07;
++				if (lastBits)
++				{   *pOutLenBit = (n-1)*8 + lastBits;   }
++				else
++				{   *pOutLenBit = n*8;   }
++				if (n == 0)
++				{   n = 1;    }
++				if (n > MAXRLEN)
++				{   n = MAXRLEN;   }
++				for (i=0; i<n; i++)
++				{   pOutData[i] = ReadRawRC(FIFODataReg);    }
++			}
++		}
++		else
++		{   status = MI_ERR;   }
++
++	}
++
++
++	SetBitMask(ControlReg,0x80);           // stop timer now
++	WriteRawRC(CommandReg,PCD_IDLE); 
++	return status;
++}
++
++
++void PcdAntennaOn(void)
++{
++	unsigned char i;
++	i = ReadRawRC(TxControlReg);
++	if (!(i & 0x03))
++	{
++		SetBitMask(TxControlReg, 0x03);
++	}
++}
++
++
++void PcdAntennaOff(void)
++{
++	ClearBitMask(TxControlReg, 0x03);
++}
++
++
+diff --git a/drivers/misc/rfid_rc522/rc522_api.h b/drivers/misc/rfid_rc522/rc522_api.h
+new file mode 100644
+index 000000000000..a19af9c4dc30
+--- /dev/null
++++ b/drivers/misc/rfid_rc522/rc522_api.h
+@@ -0,0 +1,149 @@
++#ifndef __rc522_h__
++#define __rc522_h__
++
++#define PCD_IDLE              0x00               //»°œ˚µ±«∞√¸¡Ó
++#define PCD_AUTHENT           0x0E               //—È÷§√‹‘ø
++#define PCD_RECEIVE           0x08               //Ω” ’ ˝æ›
++#define PCD_TRANSMIT          0x04               //∑¢ÀÕ ˝æ›
++#define PCD_TRANSCEIVE        0x0C               //∑¢ÀÕ≤¢Ω” ’ ˝æ›
++#define PCD_RESETPHASE        0x0F               //∏¥Œª
++#define PCD_CALCCRC           0x03               //CRCº∆À„
++
++
++#define PICC_REQIDL           0x26               //—∞ÃÏœﬂ«¯ƒ⁄Œ¥Ω¯»Î–›√ﬂ◊¥Ã¨
++#define PICC_REQALL           0x52               //—∞ÃÏœﬂ«¯ƒ⁄»´≤øø®
++#define PICC_ANTICOLL1        0x93               //∑¿≥Â◊≤
++#define PICC_ANTICOLL2        0x95               //∑¿≥Â◊≤
++#define PICC_AUTHENT1A        0x60               //—È÷§A√‹‘ø
++#define PICC_AUTHENT1B        0x61               //—È÷§B√‹‘ø
++#define PICC_READ             0x30               //∂¡øÈ
++#define PICC_WRITE            0xA0               //–¥øÈ
++#define PICC_DECREMENT        0xC0               //ø€øÓ
++#define PICC_INCREMENT        0xC1               //≥‰÷µ
++#define PICC_RESTORE          0xC2               //µ˜øÈ ˝æ›µΩª∫≥Â«¯
++#define PICC_TRANSFER         0xB0               //±£¥Êª∫≥Â«¯÷– ˝æ›
++#define PICC_HALT             0x50               //–›√ﬂ
++
++
++#define DEF_FIFO_LENGTH       64                 //FIFO size=64byte
++#define MAXRLEN  18
++
++
++#define     RFU00                 0x00    
++#define     CommandReg            0x01    
++#define     ComIEnReg             0x02    
++#define     DivlEnReg             0x03    
++#define     ComIrqReg             0x04    
++#define     DivIrqReg             0x05
++#define     ErrorReg              0x06    
++#define     Status1Reg            0x07    
++#define     Status2Reg            0x08    
++#define     FIFODataReg           0x09
++#define     FIFOLevelReg          0x0A
++#define     WaterLevelReg         0x0B
++#define     ControlReg            0x0C
++#define     BitFramingReg         0x0D
++#define     CollReg               0x0E
++#define     RFU0F                 0x0F
++// PAGE 1     
++#define     RFU10                 0x10
++#define     ModeReg               0x11
++#define     TxModeReg             0x12
++#define     RxModeReg             0x13
++#define     TxControlReg          0x14
++#define     TxAutoReg             0x15
++#define     TxSelReg              0x16
++#define     RxSelReg              0x17
++#define     RxThresholdReg        0x18
++#define     DemodReg              0x19
++#define     RFU1A                 0x1A
++#define     RFU1B                 0x1B
++#define     MifareReg             0x1C
++#define     RFU1D                 0x1D
++#define     RFU1E                 0x1E
++#define     SerialSpeedReg        0x1F
++// PAGE 2    
++#define     RFU20                 0x20  
++#define     CRCResultRegM         0x21
++#define     CRCResultRegL         0x22
++#define     RFU23                 0x23
++#define     ModWidthReg           0x24
++#define     RFU25                 0x25
++#define     RFCfgReg              0x26
++#define     GsNReg                0x27
++#define     CWGsCfgReg            0x28
++#define     ModGsCfgReg           0x29
++#define     TModeReg              0x2A
++#define     TPrescalerReg         0x2B
++#define     TReloadRegH           0x2C
++#define     TReloadRegL           0x2D
++#define     TCounterValueRegH     0x2E
++#define     TCounterValueRegL     0x2F
++// PAGE 3      
++#define     RFU30                 0x30
++#define     TestSel1Reg           0x31
++#define     TestSel2Reg           0x32
++#define     TestPinEnReg          0x33
++#define     TestPinValueReg       0x34
++#define     TestBusReg            0x35
++#define     AutoTestReg           0x36
++#define     VersionReg            0x37
++#define     AnalogTestReg         0x38
++#define     TestDAC1Reg           0x39  
++#define     TestDAC2Reg           0x3A   
++#define     TestADCReg            0x3B   
++#define     RFU3C                 0x3C   
++#define     RFU3D                 0x3D   
++#define     RFU3E                 0x3E   
++#define     RFU3F		  		  0x3F
++
++#define 	MI_OK                 0
++#define 	MI_NOTAGERR           (-1)
++#define 	MI_ERR                (-2)
++
++#define SET_SPI_CS  do{}while(0)
++#define CLR_SPI_CS  do{}while(0)
++
++#define SET_SPI_CK  do{}while(0)
++#define CLR_SPI_CK  do{}while(0)
++#define SET_SPI_MOSI  do{}while(0)
++#define CLR_SPI_MOSI  do{}while(0)
++#define STU_SPI_MISO  do{}while(0)
++
++
++#define SET_RC522RST do{}while(0) 
++#define CLR_RC522RST do{}while(0)
++extern char PcdReset(void);
++extern char PcdRequest(unsigned char req_code,unsigned char *pTagType);
++extern void PcdAntennaOn(void);
++extern void PcdAntennaOff(void);
++extern char M500PcdConfigISOType(unsigned char type);
++extern char PcdAnticoll(unsigned char *pSnr);
++extern char PcdSelect(unsigned char *pSnr);
++extern char PcdAuthState(unsigned char auth_mode,unsigned char addr,unsigned char *pKey,unsigned char *pSnr);
++extern char PcdWrite(unsigned char addr,unsigned char *pData);
++extern char PcdRead(unsigned char addr,unsigned char *pData);
++extern char PcdHalt(void);
++extern struct spi_device *rc522_spi;
++extern unsigned char ReadRawRC(unsigned char Address);
++
++#endif
++
++
++//struct spi_device *rc522_spi;
++
++
++void ClearBitMask(unsigned char reg,unsigned char mask);
++void WriteRawRC(unsigned char Address, unsigned char value);
++void SetBitMask(unsigned char reg,unsigned char mask);
++char PcdComMF522(unsigned char Command,
++                unsigned char *pInData,
++                unsigned char InLenByte,
++                unsigned char *pOutData,
++                unsigned int  *pOutLenBit);
++void CalulateCRC(unsigned char *pIndata,unsigned char len,unsigned char *pOutData);
++unsigned char ReadRawRC(unsigned char Address);
++void PcdAntennaOn(void);
++
++
++
+-- 
+2.34.1
+
