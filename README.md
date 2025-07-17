@@ -18,7 +18,6 @@ rfid-rc522-linux-driver/
 ├── rfid-rc522_Generating_patch.pdf
 └── README.md # This documentation
 
-text
 
 ⚙️ Hardware Requirements
 - 📟 RC522 RFID Module (SPI)
@@ -42,11 +41,10 @@ rc522_api.h
 Kconfig
 Makefile
 
-text
 
 ### 🛠️ 2. Modify Kernel Kconfig & Makefile
-Edit `drivers/misc/Kconfig`:
-```bash
+**Edit `drivers/misc/Kconfig`:**
+
 source "drivers/misc/rfid_rc522/Kconfig"
 Edit drivers/misc/Makefile:
 
@@ -56,7 +54,7 @@ obj-y += rfid_rc522/
 Modify a5d2x-rugged_board_common.dtsi to include SPI node and pinctrl.
 
 🏗️ 4. Recompile Kernel
-bash
+
 source /opt/poky-tiny/2.5.2/environment-setup-cortexa5hf-neon-poky-linux-musleabi
 make distclean
 make rb_a5d2x_defconfig
@@ -68,25 +66,25 @@ Replace zImage and .dtb files in the boot partition.
 🧪 Driver Testing
 
 🔍 Check Device Node
-bash
+
 ls /dev/rfid_rc522_dev
 🧰 Build & Send Test App
-bash
+
 ${CC} rfid_rc522_dev.c -o rfid_rc522_dev
 scp rfid_rc522_dev root@<board-ip>:/home/root
 ▶️ Run on Target
-bash
+
 chmod +x rfid_rc522_dev
 ./rfid_rc522_dev
 🧵 Patch Generation (Optional)
 
 Create Patch
-bash
+
 git add drivers/misc/rfid_rc522/
 git commit -m "Add RC522 RFID driver"
 git format-patch -p1 -o patches/
 Apply Patch
-bash
+
 git am 0001-rfid-rc522_driver.patch
 📄 Documentation
 
