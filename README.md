@@ -27,27 +27,28 @@ Edit
 
 ## ⚙️ Hardware Requirements
 
-- 📟 RC522 RFID Module (SPI)  
-- 💻 RB-A5D2X (Rugged Board)  
-- 🔌 SPI-connected via mikroBUS (VCC, MISO, MOSI, SCK, CS, RST, GND)  
-- 🏷️ RFID Tags  
+- 📟 RC522 RFID Module (SPI)
+- 💻 RB-A5D2X (Rugged Board)
+- 🔌 SPI-connected via mikroBUS (VCC, MISO, MOSI, SCK, CS, RST, GND)
+- 🏷️ RFID Tags
 
 ---
 
 ## 🔧 Software Requirements
 
-- 🐧 Linux kernel source for RB-A5D2X  
-- 🛠 Yocto or similar toolchain setup  
-- 📦 Git, GCC, Device Tree tools  
-- 🧰 Cross-compilation environment (e.g. `poky-tiny`)  
+- 🐧 Linux kernel source for RB-A5D2X
+- 🛠️ Yocto or similar toolchain setup
+- 📦 Git, GCC, Device Tree tools
+- 🧰 Cross-compilation environment (e.g. `poky-tiny`)
 
 ---
 
 ## 🚀 Driver Integration (Kernel Static Build)
 
-1. **Copy driver files into kernel:**
+### 1. Copy driver files into kernel
 
-   Place in: `/drivers/misc/rfid_rc522/`
+Place in: `/drivers/misc/rfid_rc522/`
+
 ├── rc522.c
 ├── rc522_api.c
 ├── rc522_api.h
@@ -58,9 +59,10 @@ bash
 Copy
 Edit
 
-2. **Modify kernel Kconfig & Makefile:**
+### 2. Modify kernel Kconfig & Makefile
 
 In `drivers/misc/Kconfig`:
+
 ```c
 source "drivers/misc/rfid_rc522/Kconfig"
 In drivers/misc/Makefile:
@@ -69,37 +71,34 @@ make
 Copy
 Edit
 obj-y += rfid_rc522/
-Update device tree:
+3. Update device tree
 Modify a5d2x-rugged_board_common.dtsi to include SPI node and pinctrl.
 
-Recompile kernel:
-
+4. Recompile kernel
 bash
 Copy
 Edit
 source /opt/poky-tiny/2.5.2/environment-setup-cortexa5hf-neon-poky-linux-musleabi
-make distclean && make rb_a5d2x_defconfig
+make distclean
+make rb_a5d2x_defconfig
 make menuconfig   # Enable RFID_RC522
 make
-Copy artifacts to SD card:
+5. Copy artifacts to SD card
 Replace zImage and .dtb files in boot partition.
 
 🧪 Testing the Driver
-Boot the board and check for device:
-
+1. Boot the board and check for device:
 bash
 Copy
 Edit
 ls /dev/rfid_rc522_dev
-Compile & send test app:
-
+2. Compile & send test app:
 bash
 Copy
 Edit
 ${CC} rfid_rc522_dev.c -o rfid_rc522_dev
 scp rfid_rc522_dev root@<board-ip>:/home/root
-Run on board:
-
+3. Run on board:
 bash
 Copy
 Edit
@@ -128,5 +127,4 @@ rfid-rc522_Generating_patch.pdf — Kernel patch generation steps
 👨‍💻 Developed By
 Venkatesh M
 📧 venkatesh.muninagaraju@essae.com
-Embedded Systems Engineer
-
+👨‍💼 Embedded Systems Engineer
