@@ -112,5 +112,5 @@ git am 0001-rfid-rc522_driver.patch
 
 👨‍💻 Developed By
 Venkatesh M
-📧 venkatesh.muninagaraju@essae.com
+📧 venkatesh.m@phytecembedded.com
 👨‍💼 Embedded Systems Engineer
