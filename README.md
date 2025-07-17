@@ -1,4 +1,4 @@
-# 💾 RFID RC522 Linux Driver for A5D2X
+# RFID RC522 Linux Driver for A5D2X
 
 This repository contains a Linux kernel driver and integration guide for the **RC522 RFID module** on the **A5D2X (Rugged Board)** using SPI interface. It includes kernel driver source, device tree patching, and testing procedures.
 
@@ -20,9 +20,6 @@ rfid-rc522-linux-driver/
 ├── Integration_rfid-rc522.pdf # Driver integration guide
 ├── rfid-rc522_Generating_patch.pdf # Patch generation guide
 
-yaml
-Copy
-Edit
 
 ---
 
@@ -57,9 +54,6 @@ Destination: drivers/misc/rfid_rc522/
 ├── Kconfig
 └── Makefile
 
-yaml
-Copy
-Edit
 
 ---
 
@@ -75,8 +69,7 @@ drivers/misc/Makefile
 Add:
 
 make
-Copy
-Edit
+
 obj-y += rfid_rc522/
 🌲 Step 3: Update Device Tree
 Edit:
@@ -87,9 +80,7 @@ Add the SPI node and pin configuration for the RC522.
 ➡️ Reference: 0001-Rb-a5d2x.dtsi.patch
 
 🏗️ Step 4: Recompile the Kernel
-bash
-Copy
-Edit
+
 # Setup Yocto environment
 source /opt/poky-tiny/2.5.2/environment-setup-cortexa5hf-neon-poky-linux-musleabi
 
@@ -98,7 +89,8 @@ make distclean
 make rb_a5d2x_defconfig
 make menuconfig      # Enable "RFID_RC522" driver
 make
-💾 Step 5: Deploy to Target Board
+
+Step 5: Deploy to Target Board
 Copy kernel artifacts to SD card:
 
 zImage
@@ -109,29 +101,20 @@ Place these into the /boot partition on the target device.
 
 🧪 Testing the Driver
 🔍 1. Boot and Verify Device
-bash
-Copy
-Edit
+
 ls /dev/rfid_rc522_dev
 If the driver loads, the device node will be created.
 
 🧰 2. Build and Deploy Test Application
 Compile on host:
 
-bash
-Copy
-Edit
 ${CC} rfid_rc522_dev.c -o rfid_rc522_dev
 Transfer to board:
 
-bash
-Copy
-Edit
+
 scp rfid_rc522_dev root@<board-ip>:/home/root
 ▶️ 3. Run Test Application
-bash
-Copy
-Edit
+
 chmod +x rfid_rc522_dev
 ./rfid_rc522_dev
 🧵 Generating Kernel Patch (Optional)
@@ -151,6 +134,5 @@ git am 0001-rfid-rc522_driver.patch
 📘 rfid-rc522_Generating_patch.pdf – Patch creation guide
 
 👨‍💻 Developed By
-Venkatesh M
-📧 venkatesh.m@phytecembadded.com
- Embedded Systems Engineer
+Venkatesh M    venkatesh.m@phytecembadded.com
+Embedded Systems Engineer
