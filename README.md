@@ -1,7 +1,3 @@
-✅ Final README.md (Copy & Paste This to GitHub)
-markdown
-Copy
-Edit
 # 💾 RFID RC522 Linux Driver for A5D2X
 
 This repository contains a Linux kernel driver and integration steps for the **RC522 RFID module** on the **A5D2X (Rugged Board)** using the SPI interface. It includes both the driver source code and the instructions to patch, compile, and test it on a target board.
@@ -93,18 +89,18 @@ make
 Replace zImage and .dtb files in the boot partition.
 
 🧪 Testing the Driver
-🔍 1. Boot the board and check for device:
+🔍 1. Boot the board and check for device
 bash
 Copy
 Edit
 ls /dev/rfid_rc522_dev
-🧰 2. Compile & Send Test App:
+🧰 2. Compile & Send Test App
 bash
 Copy
 Edit
 ${CC} rfid_rc522_dev.c -o rfid_rc522_dev
 scp rfid_rc522_dev root@<board-ip>:/home/root
-▶️ 3. Run on Board:
+▶️ 3. Run on Board
 bash
 Copy
 Edit
