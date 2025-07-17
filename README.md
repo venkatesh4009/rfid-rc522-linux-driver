@@ -56,10 +56,6 @@ Place files into `/drivers/misc/rfid_rc522/`:
 ├── Kconfig
 └── Makefile
 
-yaml
-Copy
-Edit
-
 ---
 
 ### 🛠️ 2. Modify Kernel `Kconfig` & `Makefile`
@@ -70,17 +66,13 @@ Edit `drivers/misc/Kconfig`:
 source "drivers/misc/rfid_rc522/Kconfig"
 Edit drivers/misc/Makefile:
 
-make
-Copy
-Edit
+
 obj-y += rfid_rc522/
 🌲 3. Update Device Tree
 Modify a5d2x-rugged_board_common.dtsi to include SPI node and pinctrl.
 
 🏗️ 4. Recompile Kernel
-bash
-Copy
-Edit
+
 source /opt/poky-tiny/2.5.2/environment-setup-cortexa5hf-neon-poky-linux-musleabi
 make distclean
 make rb_a5d2x_defconfig
@@ -91,36 +83,25 @@ Replace zImage and .dtb files in the boot partition.
 
 🧪 Driver Testing
 🔍 Check Device Node
-bash
-Copy
-Edit
+
 ls /dev/rfid_rc522_dev
 🧰 Build & Send Test App
-bash
-Copy
-Edit
+
 ${CC} rfid_rc522_dev.c -o rfid_rc522_dev
 scp rfid_rc522_dev root@<board-ip>:/home/root
 ▶️ Run on Target
-bash
-Copy
-Edit
+
 chmod +x rfid_rc522_dev
 ./rfid_rc522_dev
 🧵 Patch Generation (Optional)
 To create a patch:
 
-bash
-Copy
-Edit
 git add drivers/misc/rfid_rc522/
 git commit -m "Add RC522 RFID driver"
 git format-patch -p1 -o patches/
 To apply the patch:
 
-bash
-Copy
-Edit
+
 git am 0001-rfid-rc522_driver.patch
 📄 Documentation
 📘 Integration_rfid-rc522.pdf – Full hardware & software integration guide
@@ -132,6 +113,4 @@ Venkatesh M
 📧 venkatesh.muninagaraju@essae.com
 👨‍💼 Embedded Systems Engineer
 
-pgsql
-Copy
-Edit
+
