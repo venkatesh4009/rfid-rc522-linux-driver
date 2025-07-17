@@ -4,7 +4,8 @@ This repository contains a Linux kernel driver and integration guide for the **R
 
 ---
 
-## 📁 Project Structure
+
+## 📦 Project Structure
 
 rfid-rc522-linux-driver/
 ├── rfid_rc522/ # Kernel driver source folder
@@ -16,21 +17,19 @@ rfid-rc522-linux-driver/
 ├── rfid_rc522_dev.c # User-space test application
 ├── driver-readme # Developer notes
 ├── 0001-Rb-a5d2x.dtsi.patch # Device tree patch
-├── 0002-rfid-rc522_driver.patch # Kernel driver patch
+├── 0002-rfid-rc522_driver.patch # Driver patch
 ├── Integration_rfid-rc522.pdf # Driver integration guide
 ├── rfid-rc522_Generating_patch.pdf # Patch generation guide
 
-yaml
-Copy
-Edit
+
 
 ---
 
 ## ⚙️ Hardware Requirements
 
-- 📟 RC522 RFID Module (SPI interface)
+- 📟 RC522 RFID Module (SPI)
 - 💻 RB-A5D2X (Rugged Board)
-- 🔌 mikroBUS SPI interface (VCC, MISO, MOSI, SCK, CS, RST, GND)
+- 🔌 SPI-connected via mikroBUS (VCC, MISO, MOSI, SCK, CS, RST, GND)
 - 🏷️ RFID Tags
 
 ---
@@ -38,123 +37,80 @@ Edit
 ## 🔧 Software Requirements
 
 - 🐧 Linux kernel source for RB-A5D2X
-- 🛠️ Yocto build environment
-- 📦 GCC, Git, Device Tree tools
-- 🧰 Cross-compiler toolchain (`poky-tiny`, etc.)
+- 🛠️ Yocto or similar toolchain setup
+- 📦 Git, GCC, Device Tree tools
+- 🧰 Cross-compilation environment (e.g. poky-tiny)
 
 ---
 
-## 🚀 Integration Steps (Static Kernel Driver)
+## 🚀 Driver Integration (Kernel Static Build)
 
-### ✅ Step 1: Copy Driver Files
+### 📁 1. Copy driver files into kernel
 
-Place the following files into your kernel source:
+Place files into `/drivers/misc/rfid_rc522/`:
 
-Destination: drivers/misc/rfid_rc522/
-├── rc522.c
-├── rc522_api.c
-├── rc522_api.h
-├── Kconfig
-└── Makefile
+rc522.c
+rc522_api.c
+rc522_api.h
+Kconfig
+Makefile
 
-yaml
-Copy
-Edit
 
 ---
 
-### 🛠️ Step 2: Modify Kernel Build Files
+### 🛠️ 2. Modify kernel Kconfig & Makefile
 
-Edit the following:
+Edit `drivers/misc/Kconfig`:
 
-- `drivers/misc/Kconfig`  
-  Add:
-  ```c
-  source "drivers/misc/rfid_rc522/Kconfig"
-drivers/misc/Makefile
-Add:
+```c
+source "drivers/misc/rfid_rc522/Kconfig"
+Edit drivers/misc/Makefile:
 
 make
-Copy
-Edit
+
 obj-y += rfid_rc522/
-🌲 Step 3: Update Device Tree
-Edit:
-arch/arm/boot/dts/a5d2x-rugged_board_common.dtsi
+🌲 3. Update device tree
+Modify a5d2x-rugged_board_common.dtsi to include SPI node and pinctrl for RC522.
 
-Add the SPI node and pin configuration for the RC522.
+🏗️ 4. Recompile kernel
 
-➡️ Reference: 0001-Rb-a5d2x.dtsi.patch
-
-🏗️ Step 4: Recompile the Kernel
-bash
-Copy
-Edit
-# Setup Yocto environment
 source /opt/poky-tiny/2.5.2/environment-setup-cortexa5hf-neon-poky-linux-musleabi
-
-# Clean and configure kernel
 make distclean
 make rb_a5d2x_defconfig
-make menuconfig      # Enable "RFID_RC522" driver
+make menuconfig   # Enable RFID_RC522
 make
-💾 Step 5: Deploy to Target Board
-Copy kernel artifacts to SD card:
-
-zImage
-
-<board>.dtb
-
-Place these into the /boot partition on the target device.
+💾 5. Copy artifacts to SD card
+Replace zImage and .dtb files in the boot partition with newly built ones.
 
 🧪 Testing the Driver
-🔍 1. Boot and Verify Device
-bash
-Copy
-Edit
+🔍 1. Boot and check device
+
 ls /dev/rfid_rc522_dev
-If the driver loads, the device node will be created.
+🧰 2. Compile & send test app
 
-🧰 2. Build and Deploy Test Application
-Compile on host:
-
-bash
-Copy
-Edit
 ${CC} rfid_rc522_dev.c -o rfid_rc522_dev
-Transfer to board:
-
-bash
-Copy
-Edit
 scp rfid_rc522_dev root@<board-ip>:/home/root
-▶️ 3. Run Test Application
-bash
-Copy
-Edit
+▶️ 3. Run on board
+
 chmod +x rfid_rc522_dev
 ./rfid_rc522_dev
-🧵 Generating Kernel Patch (Optional)
-To create a patch:
+🧵 Patch Generation (Optional)
+To create patches:
 
-bash
-Copy
-Edit
+
 git add drivers/misc/rfid_rc522/
 git commit -m "Add RC522 RFID driver"
 git format-patch -p1 -o patches/
-To apply the patch later:
+To apply patch later:
 
-bash
-Copy
-Edit
+
 git am 0001-rfid-rc522_driver.patch
 📄 Documentation
-📘 Integration_rfid-rc522.pdf – Complete driver integration steps
+📘 Integration_rfid-rc522.pdf — Full hardware & software integration guide
 
-📘 rfid-rc522_Generating_patch.pdf – Patch creation guide
+📘 rfid-rc522_Generating_patch.pdf — Kernel patch generation steps
 
 👨‍💻 Developed By
 Venkatesh M
 📧 venkatesh.muninagaraju@essae.com
-🔧 Embedded Systems Engineer
+👨‍💼 Embedded Systems Engineer
