@@ -1,10 +1,10 @@
-# 🛠️ RFID RC522 Linux Driver for A5D2X
+# 💾 RFID RC522 Linux Driver for A5D2X
 
 This repository contains a Linux kernel driver and integration steps for the **RC522 RFID module** on the **A5D2X (Rugged Board)** using the SPI interface. It includes both the driver source code and the instructions to patch, compile, and test it on a target board.
 
 ---
 
-## 📂 Project Structure
+## 📦 Project Structure
 
 rfid-rc522-linux-driver/
 ├── rfid_rc522/ # Kernel driver source folder
@@ -45,9 +45,9 @@ Edit
 
 ## 🚀 Driver Integration (Kernel Static Build)
 
-### 1. Copy driver files into kernel
+### 📁 1. Copy driver files into kernel
 
-Place in: `/drivers/misc/rfid_rc522/`
+Place files into `/drivers/misc/rfid_rc522/`:
 
 ├── rc522.c
 ├── rc522_api.c
@@ -55,26 +55,28 @@ Place in: `/drivers/misc/rfid_rc522/`
 ├── Kconfig
 └── Makefile
 
-bash
+yaml
 Copy
 Edit
 
-### 2. Modify kernel Kconfig & Makefile
+---
 
-In `drivers/misc/Kconfig`:
+### 🛠️ 2. Modify kernel Kconfig & Makefile
+
+Edit `drivers/misc/Kconfig`:
 
 ```c
 source "drivers/misc/rfid_rc522/Kconfig"
-In drivers/misc/Makefile:
+Edit drivers/misc/Makefile:
 
 make
 Copy
 Edit
 obj-y += rfid_rc522/
-3. Update device tree
+🌲 3. Update device tree
 Modify a5d2x-rugged_board_common.dtsi to include SPI node and pinctrl.
 
-4. Recompile kernel
+🏗️ 4. Recompile kernel
 bash
 Copy
 Edit
@@ -83,29 +85,29 @@ make distclean
 make rb_a5d2x_defconfig
 make menuconfig   # Enable RFID_RC522
 make
-5. Copy artifacts to SD card
+💾 5. Copy artifacts to SD card
 Replace zImage and .dtb files in boot partition.
 
 🧪 Testing the Driver
-1. Boot the board and check for device:
+🔍 1. Boot the board and check for device:
 bash
 Copy
 Edit
 ls /dev/rfid_rc522_dev
-2. Compile & send test app:
+🧰 2. Compile & send test app:
 bash
 Copy
 Edit
 ${CC} rfid_rc522_dev.c -o rfid_rc522_dev
 scp rfid_rc522_dev root@<board-ip>:/home/root
-3. Run on board:
+▶️ 3. Run on board:
 bash
 Copy
 Edit
 chmod +x rfid_rc522_dev
 ./rfid_rc522_dev
 🧵 Patch Generation (Optional)
-If you're integrating into an upstream kernel:
+To create patches:
 
 bash
 Copy
@@ -120,9 +122,9 @@ Copy
 Edit
 git am 0001-rfid-rc522_driver.patch
 📄 Documentation
-Integration_rfid-rc522.pdf — Full hardware & software integration guide
+📘 Integration_rfid-rc522.pdf — Full hardware & software integration guide
 
-rfid-rc522_Generating_patch.pdf — Kernel patch generation steps
+📘 rfid-rc522_Generating_patch.pdf — Kernel patch generation steps
 
 👨‍💻 Developed By
 Venkatesh M
