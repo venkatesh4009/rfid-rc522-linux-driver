@@ -19,9 +19,6 @@ rfid-rc522-linux-driver/
 ├── Integration_rfid-rc522.pdf # Driver integration guide
 ├── rfid-rc522_Generating_patch.pdf # Patch generation guide
 
-yaml
-Copy
-Edit
 
 ---
 
@@ -53,9 +50,6 @@ Edit
 ├── Kconfig
 └── Makefile
 
-javascript
-Copy
-Edit
 
 2. Modify kernel Kconfig & Makefile:
 - `drivers/misc/Kconfig`:  
@@ -71,7 +65,7 @@ Edit
 Add SPI node for RC522 with pinctrl.
 
 4. Recompile kernel:
-```bash
+
 source /opt/poky-tiny/2.5.2/environment-setup-cortexa5hf-neon-poky-linux-musleabi
 make distclean && make rb_a5d2x_defconfig
 make menuconfig  # Enable RFID_RC522
@@ -83,38 +77,28 @@ Boot the board.
 
 Check for device:
 
-bash
-Copy
-Edit
+
 ls /dev/rfid_rc522_dev
 Compile and copy test app:
 
-bash
-Copy
-Edit
+
 ${CC} rfid_rc522_dev.c -o rfid_rc522_dev
 scp rfid_rc522_dev root@<board-ip>:/home/root
 On board:
 
-bash
-Copy
-Edit
+
 chmod +x rfid_rc522_dev
 ./rfid_rc522_dev
 🧵 Patch Generation (if required)
 If you're integrating into an upstream kernel:
 
-bash
-Copy
-Edit
+
 git add drivers/misc/rfid_rc522/
 git commit -m "Add RC522 RFID driver"
 git format-patch -p1 -o patches/
 Apply later using:
 
-bash
-Copy
-Edit
+
 git am 0001-rfid-rc522_driver.patch
 📄 Documentation
 Integration_rfid-rc522.pdf: Full integration and wiring guide.
@@ -123,5 +107,5 @@ rfid-rc522_Generating_patch.pdf: How to generate patches for kernel inclusion.
 
 👨‍💻 Developed By
 Venkatesh M
-📧 venkatesh.muninagaraju@essae.com
+📧 venkatesh.m@phytecembedded.com
 👨‍💼 Embedded Systems Engineer
