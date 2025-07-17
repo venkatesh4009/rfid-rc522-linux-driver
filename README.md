@@ -18,6 +18,7 @@ rfid-rc522-linux-driver/
 ├── *.patch # Kernel patch files
 ├── Integration_rfid-rc522.pdf
 ├── rfid-rc522_Generating_patch.pdf
+└── README.md # This documentation
 
 yaml
 Copy
@@ -29,7 +30,7 @@ Edit
 
 - 📟 RC522 RFID Module (SPI)
 - 💻 RB-A5D2X (Rugged Board)
-- 🔌 SPI-connected via mikroBUS (VCC, MISO, MOSI, SCK, CS, RST, GND)
+- 🔌 Connected via mikroBUS (VCC, MISO, MOSI, SCK, CS, RST, GND)
 - 🏷️ RFID Tags
 
 ---
@@ -43,9 +44,9 @@ Edit
 
 ---
 
-## 🚀 Driver Integration (Kernel Static Build)
+## 🚀 Driver Integration (Static Kernel Build)
 
-### 📁 1. Copy driver files into kernel
+### 📁 1. Copy Driver Files
 
 Place files into `/drivers/misc/rfid_rc522/`:
 
@@ -61,7 +62,7 @@ Edit
 
 ---
 
-### 🛠️ 2. Modify kernel Kconfig & Makefile
+### 🛠️ 2. Modify Kernel `Kconfig` & `Makefile`
 
 Edit `drivers/misc/Kconfig`:
 
@@ -85,29 +86,29 @@ make distclean
 make rb_a5d2x_defconfig
 make menuconfig   # Enable RFID_RC522
 make
-💾 5. Copy Artifacts to SD Card
+💾 5. Copy to SD Card
 Replace zImage and .dtb files in the boot partition.
 
-🧪 Testing the Driver
-🔍 1. Boot the board and check for device
+🧪 Driver Testing
+🔍 Check Device Node
 bash
 Copy
 Edit
 ls /dev/rfid_rc522_dev
-🧰 2. Compile & Send Test App
+🧰 Build & Send Test App
 bash
 Copy
 Edit
 ${CC} rfid_rc522_dev.c -o rfid_rc522_dev
 scp rfid_rc522_dev root@<board-ip>:/home/root
-▶️ 3. Run on Board
+▶️ Run on Target
 bash
 Copy
 Edit
 chmod +x rfid_rc522_dev
 ./rfid_rc522_dev
 🧵 Patch Generation (Optional)
-To create patches:
+To create a patch:
 
 bash
 Copy
@@ -115,22 +116,22 @@ Edit
 git add drivers/misc/rfid_rc522/
 git commit -m "Add RC522 RFID driver"
 git format-patch -p1 -o patches/
-To apply the patch later:
+To apply the patch:
 
 bash
 Copy
 Edit
 git am 0001-rfid-rc522_driver.patch
 📄 Documentation
-📘 Integration_rfid-rc522.pdf — Full hardware & software integration guide
+📘 Integration_rfid-rc522.pdf – Full hardware & software integration guide
 
-📘 rfid-rc522_Generating_patch.pdf — Kernel patch generation steps
+📘 rfid-rc522_Generating_patch.pdf – Patch generation steps
 
 👨‍💻 Developed By
 Venkatesh M
 📧 venkatesh.muninagaraju@essae.com
 👨‍💼 Embedded Systems Engineer
 
-yaml
+pgsql
 Copy
 Edit
