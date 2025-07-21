@@ -21,6 +21,7 @@ rfid-rc522-linux-driver/
 ├── 0002-rfid-rc522_driver.patch # Driver patch
 ├── Integration_rfid-rc522.pdf # Driver integration guide
 ├── rfid-rc522_Generating_patch.pdf # Patch generation guide
+
 ```
 
 
@@ -111,7 +112,10 @@ git am 0001-rfid-rc522_driver.patch
 
 📘 rfid-rc522_Generating_patch.pdf — Kernel patch generation steps
 
+---
 👨‍💻 Developed By
 Venkatesh M
-📧 venkatesh.m@phytecembedded.com
-👨‍💼 Embedded Systems Engineer
+venkatesh.m@phytecembedded.com
+Embedded Systems Engineer
+
+---
