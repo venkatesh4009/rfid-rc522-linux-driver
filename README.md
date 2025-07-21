@@ -7,7 +7,7 @@ This repository contains a Linux kernel driver and integration guide for the **R
 
 ## 📦 Project Structure
 
-```bash
+```text
 rfid-rc522-linux-driver/
 ├── rfid_rc522/ # Kernel driver source folder
 │ ├── rc522.c
@@ -45,6 +45,7 @@ rfid-rc522-linux-driver/
 
 ---
 
+```bash
 ## 🚀 Driver Integration (Kernel Static Build)
 
 ### 📁 1. Copy driver files into kernel
@@ -116,4 +117,4 @@ git am 0001-rfid-rc522_driver.patch
 Venkatesh M
 venkatesh.m@phytecembedded.com
 Embedded Systems Engineer
-
+```
