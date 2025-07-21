@@ -112,10 +112,8 @@ git am 0001-rfid-rc522_driver.patch
 
 📘 rfid-rc522_Generating_patch.pdf — Kernel patch generation steps
 
----
 👨‍💻 Developed By
 Venkatesh M
 venkatesh.m@phytecembedded.com
 Embedded Systems Engineer
 
----
