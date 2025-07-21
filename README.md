@@ -120,7 +120,7 @@ $ git am 0001-rfid-rc522_driver.patch
 
 ### 📄 Documentation
 ### 📘 Integration_rfid-rc522.pdf — Full hardware & software integration guide
-###📘 rfid-rc522_Generating_patch.pdf — Kernel patch generation steps
+### 📘 rfid-rc522_Generating_patch.pdf — Kernel patch generation steps
 
 ---
 
