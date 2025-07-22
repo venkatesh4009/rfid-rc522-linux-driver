@@ -59,12 +59,12 @@ Place files into `/drivers/misc/rfid_rc522/`:
 ### 🛠️ 2. Modify kernel Kconfig & Makefile
 
 ```bash
-Edit `drivers/misc/Kconfig`:
-source "drivers/misc/rfid_rc522/Kconfig"
+$ Edit `drivers/misc/Kconfig`:
+$ source "drivers/misc/rfid_rc522/Kconfig"
 ```
 
 ```bash
-Edit drivers/misc/Makefile:
+$ Edit drivers/misc/Makefile:
 obj-y += rfid_rc522/
 ```
 
@@ -76,11 +76,11 @@ Modify a5d2x-rugged_board_common.dtsi to include SPI node and pinctrl for RC522.
 ### 🏗️ 4. Recompile kernel
 
 ```bash
-source /opt/poky-tiny/2.5.2/environment-setup-cortexa5hf-neon-poky-linux-musleabi
-make distclean
-make rb_a5d2x_defconfig
-make menuconfig   # Enable RFID_RC522
-make
+$ source /opt/poky-tiny/2.5.2/environment-setup-cortexa5hf-neon-poky-linux-musleabi
+$ make distclean
+$ make rb_a5d2x_defconfig
+$ make menuconfig   # Enable RFID_RC522
+$ make
 ```
 
 ### 💾 5. Copy artifacts to SD card
@@ -89,13 +89,13 @@ make
 ### 🧪 Testing the Driver
 ### 🔍 1. Boot and check device
 ```bash
-ls /dev/rfid_rc522_dev
+$ ls /dev/rfid_rc522_dev
 ```
 
 ### 🧰 2. Compile & send test app
 ```bash
-${CC} rfid_rc522_dev.c -o rfid_rc522_dev
-scp rfid_rc522_dev root@<board-ip>:/home/root
+$ {CC} rfid_rc522_dev.c -o rfid_rc522_dev
+$ scp rfid_rc522_dev root@<board-ip>:/home/root
 ```
 
 ### ▶️ 3. Run on board
